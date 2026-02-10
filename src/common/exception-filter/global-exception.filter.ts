@@ -10,50 +10,75 @@ import {
 import { Request, Response } from 'express';
 import { UserAlreadyExistsError } from '../errors/user-already-exists.error';
 import { normalizeHttpExceptionResponse } from '@common/exception-filter/utils/normalize-http-exception-response';
+import { UserNotFoundInRequestError } from '@common/errors/user-not-found-in-request.error';
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
-  private readonly logger = new Logger(this.constructor.name);
-  catch(exception: any, host: ArgumentsHost): void {
+  private readonly logger = new Logger(GlobalExceptionFilter.name);
+
+  catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
+    const timestamp = new Date().toISOString();
 
     if (exception instanceof UserAlreadyExistsError) {
-      const httpException = new ConflictException({
-        message: exception.message,
-        email: exception.email,
-      });
+      return this.respondWithHttpException(
+        new ConflictException({
+          message: exception.message,
+          email: exception.email,
+        }),
+        response,
+        request,
+        timestamp,
+      );
+    }
 
-      const body = normalizeHttpExceptionResponse(httpException.getResponse());
-
-      response.status(httpException.getStatus()).json({
-        statusCode: httpException.getStatus(),
-        timestamp: new Date().toISOString(),
-        path: request.url,
-        ...body,
-      });
-
-      return;
+    if (exception instanceof UserNotFoundInRequestError) {
+      return this.respondWithHttpException(
+        exception,
+        response,
+        request,
+        timestamp,
+      );
     }
 
     if (exception instanceof HttpException) {
-      const status = exception.getStatus();
-      const body = normalizeHttpExceptionResponse(exception.getResponse());
-      response.status(status).json({
-        statusCode: status,
-        timestamp: new Date().toISOString(),
-        path: request.url,
-        ...body,
-      });
-      return;
+      return this.respondWithHttpException(
+        exception,
+        response,
+        request,
+        timestamp,
+      );
     }
+
+    this.logger.error(
+      `Unhandled exception ${request.method} ${request.originalUrl}`,
+      exception instanceof Error ? exception.stack : String(exception),
+    );
 
     response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-      timestamp: new Date().toISOString(),
-      path: request.url,
+      timestamp,
+      path: request.originalUrl,
       message: 'Internal server error',
+    });
+  }
+
+  private respondWithHttpException(
+    exception: HttpException,
+    response: Response,
+    request: Request,
+    timestamp: string,
+  ): void {
+    const status = exception.getStatus();
+    const body = normalizeHttpExceptionResponse(exception.getResponse());
+
+    response.status(status).json({
+      statusCode: status,
+      timestamp,
+      path: request.originalUrl,
+      ...body,
     });
   }
 }
