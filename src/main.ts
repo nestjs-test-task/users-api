@@ -13,7 +13,7 @@ async function bootstrap(): Promise<void> {
   const configService = app.get(ConfigService);
 
   const isProduction = configService.get('NODE_ENV') === 'production';
-  const port = configService.get<number>('PORT', 3000);
+  const port = configService.get<number>('APP_PORT', 3000);
 
   app.useLogger(
     isProduction
