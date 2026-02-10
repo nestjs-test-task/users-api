@@ -23,7 +23,12 @@
 
 ## Description
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+Users API — NestJS сервіс для керування користувачами з JWT-аутентифікацією та Swagger-документацією. Основні можливості:
+- MongoDB з Mongoose: зберігання користувачів, ролі, refresh токени.
+- Ендпоінти `/auth/login`, `/auth/refresh`, `/auth/logout` для видачі access/refresh токенів.
+- Ендпоінти `/add-user`, `/get-users`, `/get-user/:id` для створення, пошуку (пагінація, фільтри email/phone, пошуковий рядок) і отримання користувача.
+- Глобальна валідація DTO та префікс `/api` + версіонування URI, Swagger UI доступний за `/docs`.
+- За замовчуванням модуль користувачів сідає базу приблизно 2 млн записів (faker), тож перший старт може бути тривалим.
 
 ## Project setup
 
