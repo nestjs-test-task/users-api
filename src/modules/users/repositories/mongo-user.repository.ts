@@ -29,7 +29,7 @@ export class MongoUserRepository implements UserRepository {
   @CatchMongooseError('Створення користувача')
   async create(data: Partial<User>): Promise<User> {
     const user = new this.userModel(data);
-    console.log('Creating user:', user);
+
     return user.save();
   }
 

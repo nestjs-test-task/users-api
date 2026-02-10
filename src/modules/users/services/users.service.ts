@@ -24,10 +24,9 @@ export class UsersService {
     }
     const password = Security.hashPassword(dto.password);
 
-    const newUser = this.userRepository.create({ ...dto, password });
+    const newUser = await this.userRepository.create({ ...dto, password });
     this.logger.debug({
       event: 'USER_CREATED',
-      source: 'UsersService.createUser',
       user: newUser,
     });
     return newUser;

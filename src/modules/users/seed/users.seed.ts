@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, AnyBulkWriteOperation } from 'mongoose';
 import { Faker, uk } from '@faker-js/faker';
 
 import { User, UserDocument } from '../schemas/user.schema';
@@ -9,42 +9,63 @@ import { Security } from '@common/helpers/security/security';
 const fakerUA = new Faker({ locale: [uk] });
 
 const TOTAL = 2_000_000;
-const BATCH_SIZE = 5_000;
+const BATCH_SIZE = 2_000;
 
 @Injectable()
 export class UsersSeed implements OnModuleInit {
   private readonly logger = new Logger(UsersSeed.name);
 
-  @InjectModel(User.name)
-  private readonly userModel: Model<UserDocument>;
+  constructor(
+    @InjectModel(User.name)
+    private readonly userModel: Model<UserDocument>,
+  ) {}
 
   async onModuleInit() {
-    const count = await this.userModel.countDocuments();
+    const count = await this.userModel.estimatedDocumentCount();
 
-    if (count > 0) {
+    if (count) {
       this.logger.log('Users already exist, seed skipped');
-      this.logger.warn(`Users count : ${count}`);
+      this.logger.warn(`Users count: ${count}`);
       return;
     }
 
     const password = Security.hashPassword('password123');
 
     for (let offset = 0; offset < TOTAL; offset += BATCH_SIZE) {
-      const batch: Partial<User>[] = [];
+      const ops: AnyBulkWriteOperation<UserDocument>[] = [];
 
       for (let i = 0; i < BATCH_SIZE; i++) {
-        batch.push(this.generateData(password, offset + i));
+        const user = this.generateData(password, offset + i);
+
+        ops.push({
+          updateOne: {
+            filter: { email: user.email },
+            update: {
+              $setOnInsert: user,
+            },
+            upsert: true,
+          },
+        });
       }
 
-      await this.userModel.insertMany(batch, { ordered: false });
-      this.logger.debug(`Inserted ${offset + batch.length}`);
+      const res = await this.userModel.bulkWrite(ops, { ordered: false });
+
+      this.logger.debug(
+        `Matched: ${res.matchedCount}, Inserted: ${res.upsertedCount + offset}`,
+      );
     }
+
+    this.logger.log('Users upsert seed completed');
   }
 
-  generateData(password: string, index: number) {
+  private generateData(password: string, index: number) {
     const firstName = fakerUA.person.firstName();
     const lastName = fakerUA.person.lastName();
-    const birthDate = fakerUA.date.birthdate({ mode: 'age', min: 18, max: 65 });
+    const birthDate = fakerUA.date.birthdate({
+      mode: 'age',
+      min: 18,
+      max: 65,
+    });
 
     return {
       name: `${firstName} ${lastName}`,
